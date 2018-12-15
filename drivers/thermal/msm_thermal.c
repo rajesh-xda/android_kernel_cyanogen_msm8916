@@ -126,6 +126,10 @@ static struct regulator *vdd_mx;
 static struct cpufreq_frequency_table *pending_freq_table_ptr;
 static int pending_cpu_freq = -1;
 static long *tsens_temp_at_panic;
+unsigned int temp_threshold = 69;
+unsigned int poll_ms = 250;
+unsigned int core_limit_temp_degC = 80;
+unsigned int hotplug_temp_degC = 95;
 
 static LIST_HEAD(devices_list);
 static LIST_HEAD(thresholds_list);
@@ -1035,9 +1039,9 @@ static void do_cluster_freq_ctrl(long temp)
 	bool mitigate = false;
 	struct cluster_info *cluster_ptr = NULL;
 
-	if (temp >= msm_thermal_info.limit_temp_degC)
+	if (temp >= temp_threshold)
 		mitigate = true;
-	else if (temp < msm_thermal_info.limit_temp_degC -
+	else if (temp < temp_threshold -
 		 msm_thermal_info.temp_hysteresis_degC)
 		mitigate = false;
 	else
@@ -2136,7 +2140,7 @@ static void __ref do_core_control(long temp)
 
 	mutex_lock(&core_control_mutex);
 	if (msm_thermal_info.core_control_mask &&
-		temp >= msm_thermal_info.core_limit_temp_degC) {
+		temp >= core_limit_temp_degC) {
 		for (i = num_possible_cpus(); i > 0; i--) {
 			if (!(msm_thermal_info.core_control_mask & BIT(i)))
 				continue;
@@ -2155,7 +2159,7 @@ static void __ref do_core_control(long temp)
 			break;
 		}
 	} else if (msm_thermal_info.core_control_mask && cpus_offlined &&
-		temp <= (msm_thermal_info.core_limit_temp_degC -
+		temp <= (core_limit_temp_degC -
 			msm_thermal_info.core_temp_hysteresis_degC)) {
 		for (i = 0; i < num_possible_cpus(); i++) {
 			if (!(cpus_offlined & BIT(i)))
@@ -2626,7 +2630,7 @@ static void do_freq_control(long temp)
 	if (!freq_table_get)
 		return;
 
-	if (temp >= msm_thermal_info.limit_temp_degC) {
+	if (temp >= temp_threshold) {
 		if (limit_idx == limit_idx_low)
 			return;
 
@@ -2634,7 +2638,7 @@ static void do_freq_control(long temp)
 		if (limit_idx < limit_idx_low)
 			limit_idx = limit_idx_low;
 		max_freq = table[limit_idx].frequency;
-	} else if (temp < msm_thermal_info.limit_temp_degC -
+	} else if (temp < temp_threshold -
 		 msm_thermal_info.temp_hysteresis_degC) {
 		if (limit_idx == limit_idx_high)
 			return;
@@ -2700,7 +2704,7 @@ reschedule:
 	if (polling_enabled)
 		queue_delayed_work(system_power_efficient_wq,
 			&check_temp_work,
-			msecs_to_jiffies(msm_thermal_info.poll_ms));
+			msecs_to_jiffies(poll_ms));
 }
 
 static int __ref msm_thermal_cpu_callback(struct notifier_block *nfb,
@@ -2773,9 +2777,9 @@ static int hotplug_init_cpu_offlined(void)
 			return -EINVAL;
 		}
 
-		if (temp >= msm_thermal_info.hotplug_temp_degC)
+		if (temp >= hotplug_temp_degC)
 			cpus[cpu].offline = 1;
-		else if (temp <= (msm_thermal_info.hotplug_temp_degC -
+		else if (temp <= (hotplug_temp_degC -
 			msm_thermal_info.hotplug_temp_hysteresis_degC))
 			cpus[cpu].offline = 0;
 	}
@@ -2810,9 +2814,9 @@ static void hotplug_init(void)
 
 		hi_thresh = &cpus[cpu].threshold[HOTPLUG_THRESHOLD_HIGH];
 		low_thresh = &cpus[cpu].threshold[HOTPLUG_THRESHOLD_LOW];
-		hi_thresh->temp = msm_thermal_info.hotplug_temp_degC;
+		hi_thresh->temp = hotplug_temp_degC;
 		hi_thresh->trip = THERMAL_TRIP_CONFIGURABLE_HI;
-		low_thresh->temp = msm_thermal_info.hotplug_temp_degC -
+		low_thresh->temp = hotplug_temp_degC -
 				msm_thermal_info.hotplug_temp_hysteresis_degC;
 		low_thresh->trip = THERMAL_TRIP_CONFIGURABLE_LOW;
 		hi_thresh->notify = low_thresh->notify = hotplug_notify;
@@ -3875,23 +3879,11 @@ module_param_cb(enabled, &module_ops, &enabled, 0644);
 MODULE_PARM_DESC(enabled, "enforce thermal limit on cpu");
 
 /* Poll ms */
-module_param_named(poll_ms, msm_thermal_info.poll_ms, uint, 0664);
+module_param(poll_ms, uint, 0755);
 /* Temp Threshold */
-module_param_named(temp_threshold, msm_thermal_info.limit_temp_degC,
-			int, 0664);
-module_param_named(core_limit_temp_degC, msm_thermal_info.core_limit_temp_degC,
-		   uint, 0644);
-module_param_named(hotplug_temp_degC, msm_thermal_info.hotplug_temp_degC,
-		   uint, 0644);
-module_param_named(freq_mitig_temp_degc,
-		   msm_thermal_info.freq_mitig_temp_degc, uint, 0644);
-/* Control Mask */
-module_param_named(freq_control_mask,
-		   msm_thermal_info.bootup_freq_control_mask, uint, 0644);
-module_param_named(core_control_mask, msm_thermal_info.core_control_mask,
-			uint, 0664);
-module_param_named(freq_mitig_control_mask,
-		   msm_thermal_info.freq_mitig_control_mask, uint, 0644);
+module_param(temp_threshold, int, 0755);
+module_param(core_limit_temp_degC, uint, 0755);
+module_param(hotplug_temp_degC, uint, 0755);
 
 static ssize_t show_cc_enabled(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
