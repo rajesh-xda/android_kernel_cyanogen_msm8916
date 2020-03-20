@@ -4238,7 +4238,7 @@ struct workqueue_struct *__alloc_workqueue_key(const char *fmt,
 	 * on NUMA.
 	 */
 	if ((flags & WQ_UNBOUND) && max_active == 1)
-		flags |= __WQ_ORDERED
+		flags |= __WQ_ORDERED;
 
 
 	/* see the comment above the definition of WQ_POWER_EFFICIENT */
