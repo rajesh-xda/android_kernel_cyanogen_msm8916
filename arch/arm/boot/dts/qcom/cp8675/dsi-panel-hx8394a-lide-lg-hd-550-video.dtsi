@@ -37,6 +37,8 @@
 		qcom,mdss-dsi-underflow-color = <0xff>;
 		qcom,mdss-dsi-border-color = <0>;
 		qcom,mdss-dsi-pixel-packing = <0>;
+		qcom,ulps-enabled;
+        qcom,suspend-ulps-enabled;
 		qcom,mdss-dsi-on-command = [
 			39 01 00 00 00 00 04 B9 FF 83 94
 			39 01 00 00 02 00 11 BA 13 02 00 16 C5 40 10 ff 0f 04 03 21 24 25 20 08
